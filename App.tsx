@@ -327,7 +327,7 @@ export default function App() {
         </div>
         <div className="flex items-center gap-4">
           <button
-            onClick={() => window.open('https://doi.org/10.1108/IJBPA-09-2023-0130', '_blank')}
+            onClick={() => window.open('https://www.emerald.com/ohi/article-abstract/48/1/23/306730/Machine-learning-for-conservation-of-architectural?redirectedFrom=fulltext', '_blank')}
             className="p-2 text-gray-400 hover:text-black transition"
           >
             <Info className="w-5 h-5" />
