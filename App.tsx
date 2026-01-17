@@ -1,312 +1,277 @@
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, RotateCcw, Download, Info, Settings } from 'lucide-react';
+import { Play, RotateCcw, Info, ChevronRight, Layers, Box, FileImage, LayoutTemplate, Activity, Scan, RotateCw, FlipHorizontal, Wand2 } from 'lucide-react';
 import { COLORS, STAGES } from './constants';
 import { FloorPlan } from './components/FloorPlan';
 import { Pix2PixDiagram } from './components/Pix2PixDiagram';
+import { CompareSlider } from './components/CompareSlider';
 import { SceneType } from './types';
 
+// Step definitions for the stepper navigation
+const STEPS = [
+  { id: 0, label: 'Context', icon: LayoutTemplate, type: SceneType.Framing },
+  { id: 1, label: 'Dataset', icon: FileImage, type: SceneType.Dataset },
+  { id: 2, label: 'Structure', icon: Box, type: SceneType.Step1 },
+  { id: 3, label: 'Texture', icon: Layers, type: SceneType.Step2 },
+  { id: 4, label: 'Evaluation', icon: Activity, type: SceneType.Evaluation }
+];
+
 export default function App() {
-  const [currentTime, setCurrentTime] = useState(53);
+  const [activeStep, setActiveStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const animationRef = useRef<number>();
 
-  // Derived states based on currentTime (0-53s)
-  const currentScene: SceneType =
-    currentTime < 8 ? SceneType.Framing :
-      currentTime < 17 ? SceneType.Dataset : // +3s duration (was 14)
-        currentTime < 25.5 ? SceneType.Step1 : // +3s
-          currentTime < 33 ? SceneType.Step2 : // +3s
-            currentTime < 41 ? SceneType.Evaluation : // +3s
-              currentTime < 47 ? SceneType.ValidationStep1 : // +3s
-                currentTime < 53 ? SceneType.ValidationStep2 : // +3s
-                  SceneType.Summary;
+  // Interactive States
+  const [datasetRotation, setDatasetRotation] = useState(0);
+  const [datasetMirror, setDatasetMirror] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [epochScrubber, setEpochScrubber] = useState(300);
 
+  // Auto-play logic
   useEffect(() => {
-    let animationFrameId: number;
-    let lastTime = performance.now();
-
-    const animate = (time: number) => {
-      if (!isPlaying) return;
-      const deltaTime = (time - lastTime) / 1000;
-      lastTime = time;
-
-      setCurrentTime((prevTime) => {
-        const newTime = prevTime + deltaTime * 2.0; // Playback speed 2.0
-        if (newTime >= 53) {
-          setIsPlaying(false);
-          return 53;
-        }
-        return newTime;
-      });
-
-      animationFrameId = requestAnimationFrame(animate);
-    };
-
+    let interval: number;
     if (isPlaying) {
-      lastTime = performance.now();
-      animationFrameId = requestAnimationFrame(animate);
+      interval = window.setInterval(() => {
+        setActiveStep((prev) => {
+          if (prev >= STEPS.length - 1) {
+            setIsPlaying(false);
+            return prev;
+          }
+          return prev + 1;
+        });
+      }, 4000); // 4 seconds per step
     }
-
-    return () => cancelAnimationFrame(animationFrameId);
+    return () => clearInterval(interval);
   }, [isPlaying]);
 
-  const togglePlay = () => {
-    if (currentTime >= 53) {
-      setCurrentTime(0);
-      setIsPlaying(true);
-    } else {
-      setIsPlaying(!isPlaying);
-    }
-  };
   const reset = () => {
+    setActiveStep(0);
     setIsPlaying(false);
-    setCurrentTime(0);
+    setDatasetRotation(0);
+    setDatasetMirror(false);
+    setShowHeatmap(false);
+    setEpochScrubber(300);
   };
 
-
-  // Scene Components
   const renderScene = () => {
-    switch (currentScene) {
+    switch (STEPS[activeStep].type) {
       case SceneType.Framing:
-        const visibleCount = currentTime < 3 ? 1 : currentTime < 6 ? 2 : 3;
         return (
-          <div className="flex flex-row justify-center items-end gap-2 md:gap-12 h-full py-4 md:py-12">
+          <div className="flex flex-row justify-center items-end gap-2 md:gap-8 h-full py-4 md:py-12">
             {STAGES.map((stage, idx) => (
               <motion.div
                 key={stage.id}
                 initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: idx < visibleCount ? 1 : 0, y: idx < visibleCount ? 0 : 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.2 }}
                 className="flex flex-col items-center gap-2 md:gap-4 w-24 md:w-56"
               >
                 <span className="text-[10px] md:text-sm font-semibold text-gray-600">{stage.label}</span>
                 <FloorPlan stage={stage.id as any} className="w-full border shadow-sm rounded-sm bg-white" />
-                <div className="h-8 md:h-12 flex flex-col items-center">
-                  {stage.caption && (
-                    <span className="text-[8px] md:text-[10px] text-gray-400 mt-2 uppercase tracking-tighter">
-                      {stage.caption}
-                    </span>
-                  )}
-                  {idx < 2 && idx < visibleCount - 1 && (
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: window.innerWidth >= 768 ? 40 : 10 }}
-                      className="h-px bg-gray-300 absolute mt-4 -right-4 md:-right-20"
-                    />
-                  )}
-                </div>
+                <span className="text-[8px] md:text-[10px] text-gray-400 mt-2 uppercase tracking-tighter">
+                  {stage.caption}
+                </span>
               </motion.div>
             ))}
           </div>
         );
 
       case SceneType.Dataset:
-        const showAugment = currentTime > 10;
         return (
-          <div className="flex flex-col items-center justify-center h-full px-2 md:px-12">
-            <div className="flex flex-row gap-4 md:gap-12 items-center">
-              <motion.div
-                animate={{ scale: showAugment ? 0.7 : 1 }}
-                transition={{ duration: 1.5, ease: "easeInOut" }}
-              >
-                <FloorPlan stage={'footprint'} className="w-32 md:w-48 border bg-white" />
-              </motion.div>
-              {showAugment && (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {[...Array(6)].map((_, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, scale: 0.5 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 1.0, delay: i * 0.2 }}
-                    >
-                      <FloorPlan stage={'augmentation' as any} className="w-12 md:w-16 border bg-white" />
-                    </motion.div>
-                  ))}
+          <div className="flex flex-col items-center justify-center h-full px-4 md:px-12 gap-8">
+            <div className="flex flex-col md:flex-row items-center gap-12">
+              {/* Interactive Preview */}
+              <div className="relative">
+                <motion.div
+                  animate={{
+                    rotate: datasetRotation,
+                    scaleX: datasetMirror ? -1 : 1
+                  }}
+                  transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                >
+                  <FloorPlan stage="footprint" className="w-64 md:w-80 border-2 border-gray-100 shadow-xl bg-white" />
+                </motion.div>
+                <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 flex gap-2">
+                  <button
+                    onClick={() => setDatasetRotation(r => r + 90)}
+                    className="p-2 bg-white border shadow-sm rounded-full hover:bg-gray-50 text-gray-600"
+                    title="Rotate 90°"
+                  >
+                    <RotateCw size={16} />
+                  </button>
+                  <button
+                    onClick={() => setDatasetMirror(m => !m)}
+                    className={`p-2 border shadow-sm rounded-full hover:bg-gray-50 ${datasetMirror ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-white text-gray-600'}`}
+                    title="Mirror"
+                  >
+                    <FlipHorizontal size={16} />
+                  </button>
                 </div>
-              )}
+              </div>
+
+              {/* Explainer */}
+              <div className="max-w-xs space-y-4">
+                <h3 className="text-xl font-semibold">Data Augmentation</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">
+                  To train a robust RESTITUTION model, the limited historical dataset is multiplied. Try the controls to simulate the augmentation pipeline.
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-xs text-gray-400 font-mono bg-gray-50 p-3 rounded">
+                  <span>ROTATION: {datasetRotation % 360}°</span>
+                  <span>MIRROR: {datasetMirror ? 'ON' : 'OFF'}</span>
+                  <span>SAMPLES: {(4 * (datasetMirror ? 2 : 1))}X</span>
+                </div>
+              </div>
             </div>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mt-6 md:mt-12 text-center"
-            >
-              <h3 className="text-lg md:text-xl font-medium">Dataset Creation</h3>
-              <p className="text-gray-500 text-xs md:text-sm mt-2">Historical plans → raster images; augmentation: rotation/mirror</p>
-            </motion.div>
           </div>
         );
 
       case SceneType.Step1:
-        const s1Progress = Math.min(1, (currentTime - 14) / 8.5);
-        const epochs1 = [10, 30, 70, 170];
-        const currentEpochIdx1 = Math.floor(s1Progress * 4);
         return (
-          <div className="flex flex-col items-center justify-center h-full pt-8 md:pt-0">
-            <Pix2PixDiagram
-              inputLabel="Incomplete Ruins"
-              outputLabel="Generated Structure"
-              progress={s1Progress}
-              epoch={epochs1[Math.min(3, currentEpochIdx1)]}
-            />
-            <div className="mt-6 md:mt-12 flex items-center gap-4 md:gap-12">
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] text-gray-400">INPUT</span>
-                <FloorPlan stage="footprint" className="w-20 md:w-24 border bg-white" />
+          <div className="flex flex-col h-full w-full max-w-5xl mx-auto px-4 gap-6 py-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Box className="text-blue-500" />
+                Structure Generation (Step 1)
+              </h3>
+              <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                <span>Model: Pix2Pix</span>
+                <span className="w-1 h-1 bg-gray-400 rounded-full" />
+                <span>Epochs: 300</span>
               </div>
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] text-blue-500 font-bold">PREDICTION</span>
-                <FloorPlan stage="zoning" progress={s1Progress} className="w-20 md:w-24 border bg-white" />
+            </div>
+
+            <div className="flex-1 flex flex-col md:flex-row gap-8 items-center justify-center">
+              <div className="w-full max-w-md aspect-square rounded-xl overflow-hidden border-4 border-white shadow-2xl">
+                <CompareSlider
+                  before={<FloorPlan stage="footprint" className="w-full h-full" />}
+                  after={<FloorPlan stage="zoning" className="w-full h-full" />}
+                  beforeLabel="Incomplete Ruin"
+                  afterLabel="Generated Structure"
+                />
+              </div>
+              <div className="w-full md:w-1/3">
+                <Pix2PixDiagram
+                  inputLabel="Ruins"
+                  outputLabel="Structure"
+                  progress={1}
+                  epoch={300}
+                />
               </div>
             </div>
           </div>
         );
 
       case SceneType.Step2:
-        const s2Progress = Math.min(1, (currentTime - 22.5) / 7.5);
-        const epochs2 = [10, 70, 140, 210, 300];
-        const currentEpochIdx2 = Math.floor(s2Progress * 5);
         return (
-          <div className="flex flex-col items-center justify-center h-full pt-8 md:pt-0">
-            <Pix2PixDiagram
-              inputLabel="Structural Elements"
-              outputLabel="Generated Restitution"
-              progress={s2Progress}
-              epoch={epochs2[Math.min(4, currentEpochIdx2)]}
-            />
-            <div className="mt-6 md:mt-12 flex items-center gap-4 md:gap-12">
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] text-gray-400">INPUT</span>
-                <FloorPlan stage="zoning" className="w-20 md:w-24 border bg-white" />
+          <div className="flex flex-col h-full w-full max-w-5xl mx-auto px-4 gap-6 py-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Layers className="text-purple-500" />
+                Texture & Detail (Step 2)
+              </h3>
+              <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                <span>Input: Structural Map</span>
+                <span className="w-1 h-1 bg-gray-400 rounded-full" />
+                <span>Refinement</span>
               </div>
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] text-blue-500 font-bold">PREDICTION</span>
-                <FloorPlan stage="furnishing" progress={s2Progress} className="w-20 md:w-24 border bg-white" />
+            </div>
+
+            <div className="flex-1 flex flex-col md:flex-row gap-8 items-center justify-center">
+              <div className="w-full max-w-md aspect-square rounded-xl overflow-hidden border-4 border-white shadow-2xl">
+                <CompareSlider
+                  before={<FloorPlan stage="zoning" className="w-full h-full" />}
+                  after={<FloorPlan stage="furnishing" className="w-full h-full" />}
+                  beforeLabel="Structure"
+                  afterLabel="Restored Detail"
+                />
+              </div>
+              <div className="w-full md:w-1/3">
+                <Pix2PixDiagram
+                  inputLabel="Structure"
+                  outputLabel="Detail"
+                  progress={1}
+                  epoch={300}
+                />
               </div>
             </div>
           </div>
         );
 
       case SceneType.Evaluation:
-        const ssim = Math.min(0.88, (currentTime - 33) / 8);
         return (
-          <div className="flex flex-col items-center justify-center h-full px-2 md:px-24">
-            <div className="flex flex-row gap-2 md:gap-16 items-center">
-              <div className="flex flex-col items-center gap-4">
-                <span className="text-[8px] md:text-xs font-bold text-gray-400">GENERATED</span>
-                <div className="relative">
-                  <FloorPlan stage={'generated_inaccurate' as any} className="w-24 md:w-48 border bg-white" />
+          <div className="flex flex-col h-full items-center justify-center px-4 md:px-12">
+            <div className="flex gap-8 items-start">
+              {/* Main Visual */}
+              <div className="flex flex-col gap-4">
+                <div className="relative w-64 md:w-96 aspect-square bg-white border shadow-lg rounded-lg overflow-hidden group cursor-pointer"
+                  onClick={() => setShowHeatmap(!showHeatmap)}>
+                  <FloorPlan stage="furnishing" className="w-full h-full" />
+
+                  {/* Heatmap Overlay */}
                   <motion.div
-                    className="absolute inset-0 bg-blue-500/10 pointer-events-none"
-                    animate={{ opacity: [0, 0.3, 0] }}
-                    transition={{ duration: 1, repeat: Infinity }}
-                  />
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: showHeatmap ? 1 : 0 }}
+                    className="absolute inset-0 bg-mix-blend-multiply pointer-events-none"
+                  >
+                    <div className="absolute inset-0 opacity-50 bg-gradient-to-tr from-red-500/20 to-transparent" />
+                    {/* Simulated error spots */}
+                    <div className="absolute top-1/4 left-1/4 w-12 h-12 bg-red-500/40 blur-xl rounded-full" />
+                    <div className="absolute bottom-1/3 right-1/4 w-16 h-16 bg-red-500/30 blur-xl rounded-full" />
+                  </motion.div>
+
+                  {/* Toggle Button Overlay */}
+                  <div className="absolute bottom-4 right-4">
+                    <button className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg transition-transform active:scale-95 ${showHeatmap ? 'bg-red-500 text-white' : 'bg-white text-gray-700'}`}>
+                      <Scan size={14} />
+                      {showHeatmap ? 'HIDE ERRORS' : 'SHOW ERRORS'}
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="flex flex-col items-center gap-8">
-                <div className="w-16 h-16 md:w-32 md:h-32 rounded-full flex items-center justify-center relative">
-                  <span className="text-sm md:text-3xl font-bold font-mono">{ssim.toFixed(2)}</span>
-                  <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 128 128">
-                    {/* Background Track */}
-                    <circle
-                      cx="64" cy="64" r="60"
-                      fill="none" stroke="#F3F4F6" strokeWidth="4"
+
+              {/* Metrics */}
+              <div className="flex flex-col gap-6 pt-4">
+                <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-100 w-48">
+                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">SSIM Index</span>
+                  <div className="flex items-end gap-2 mt-1">
+                    <span className="text-3xl font-mono font-bold text-gray-900">0.88</span>
+                    <span className="text-xs text-green-500 font-bold mb-1">High Accuracy</span>
+                  </div>
+                  <div className="h-1 bg-gray-100 rounded-full mt-2 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: '88%' }}
+                      transition={{ delay: 0.5, duration: 1 }}
+                      className="h-full bg-blue-500"
                     />
-                    {/* Progress Circle */}
-                    <circle
-                      cx="64" cy="64" r="60"
-                      fill="none" stroke="#3B82F6" strokeWidth="4"
-                      strokeDasharray="377"
-                      strokeDashoffset={377 * (1 - ssim)}
-                      strokeLinecap="round"
+                  </div>
+                </div>
+
+                <div className="p-4 bg-white rounded-xl shadow-sm border border-gray-100 w-48">
+                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">L1 Loss</span>
+                  <div className="flex items-end gap-2 mt-1">
+                    <span className="text-3xl font-mono font-bold text-gray-900">0.04</span>
+                    <span className="text-xs text-purple-500 font-bold mb-1">Converged</span>
+                  </div>
+                  <div className="h-1 bg-gray-100 rounded-full mt-2 overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: '12%' }}
+                      transition={{ delay: 0.7, duration: 1 }}
+                      className="h-full bg-purple-500"
                     />
-                  </svg>
-                  <span className="absolute -bottom-6 text-[8px] md:text-[10px] font-bold text-gray-500">SSIM INDEX</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                  <div className="flex items-start gap-2">
+                    <Wand2 className="w-4 h-4 text-blue-600 mt-1" />
+                    <p className="text-xs text-blue-800 leading-snug">
+                      The model successfully reconstructs 88% of structural details compared to ground truth.
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="flex flex-col items-center gap-4">
-                <span className="text-[8px] md:text-xs font-bold text-gray-400">TARGET</span>
-                <FloorPlan stage="furnishing" className="w-24 md:w-48 border bg-gray-50" />
-              </div>
             </div>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8 md:mt-16 text-center">
-              <h2 className="text-lg md:text-xl font-medium">Objective Evaluation</h2>
-              <p className="text-gray-500 text-xs md:text-sm mt-1">High structural similarity (SSIM) indicates preservation of architectural constraints.</p>
-            </motion.div>
-          </div>
-        );
-
-      case SceneType.ValidationStep1:
-        return (
-          <div className="flex flex-col items-center justify-center h-full">
-            <h2 className="text-base md:text-xl font-medium mb-4 md:mb-12">Validation: Step 1</h2>
-            <div className="flex flex-row items-center gap-2 md:gap-12">
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] text-gray-400">VAL INPUT</span>
-                <FloorPlan stage="val_footprint" className="w-20 md:w-48 border bg-white" />
-              </div>
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="flex flex-col items-center"
-              >
-                <div className="w-8 md:w-12 h-[2px] bg-blue-500" />
-                <span className="text-[8px] mt-1 text-blue-500 uppercase tracking-widest">Generative</span>
-              </motion.div>
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] text-blue-500 font-bold">PREDICTION</span>
-                <FloorPlan stage="val_zoning" className="w-20 md:w-48 border bg-white" />
-              </div>
-            </div>
-            <p className="text-gray-500 text-xs md:text-sm mt-4 md:mt-12">Generating Structural elements from Incomplete Ruins.</p>
-          </div >
-        );
-
-      case SceneType.ValidationStep2:
-        return (
-          <div className="flex flex-col items-center justify-center h-full">
-            <h2 className="text-base md:text-xl font-medium mb-4 md:mb-12">Validation: Step 2</h2>
-            <div className="flex flex-row items-center gap-2 md:gap-12">
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] text-gray-400">VAL INPUT</span>
-                <FloorPlan stage="val_zoning" className="w-20 md:w-48 border bg-white" />
-              </div>
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="flex flex-col items-center"
-              >
-                <div className="w-8 md:w-12 h-[2px] bg-blue-500" />
-                <span className="text-[8px] mt-1 text-blue-500 uppercase tracking-widest">Refinement</span>
-              </motion.div>
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[10px] text-blue-500 font-bold">PREDICTION</span>
-                <FloorPlan stage="val_furnishing" className="w-20 md:w-48 border bg-white" />
-              </div>
-            </div>
-            <p className="text-gray-500 text-xs md:text-sm mt-4 md:mt-12">Restoring architectural details and textures.</p>
-          </div >
-        );
-
-      case SceneType.Summary:
-        return (
-          <div className="flex flex-col items-center justify-center h-full">
-            <div className="flex flex-row justify-center items-center gap-2 md:gap-12">
-              <FloorPlan stage="footprint" className="w-16 md:w-32 border bg-white" />
-              <motion.div initial={{ width: 0 }} animate={{ width: window.innerWidth >= 768 ? 40 : 10 }} className="h-px bg-black" />
-              <FloorPlan stage="zoning" className="w-16 md:w-32 border bg-white" />
-              <motion.div initial={{ width: 0 }} animate={{ width: window.innerWidth >= 768 ? 40 : 10 }} className="h-px bg-black" />
-              <FloorPlan stage="furnishing" className="w-16 md:w-32 border bg-white" />
-            </div>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-4 md:mt-16 text-center"
-            >
-              <h1 className="text-xl md:text-3xl font-semibold tracking-tight">Conservation of Architectural Heritage</h1>
-              <p className="text-xs md:text-lg text-gray-500 mt-2">Twofold Pix2Pix workflow for architectural heritage conservation.</p>
-            </motion.div>
           </div>
         );
 
@@ -316,104 +281,101 @@ export default function App() {
   };
 
   return (
-    <div className="h-[100dvh] bg-neutral-50 flex flex-col items-center p-2 md:p-4 overflow-hidden">
+    <div className="h-[100dvh] bg-neutral-50 flex flex-col overflow-hidden font-sans text-slate-900">
       {/* Header */}
-      <header className="w-full max-w-6xl flex flex-col md:flex-row justify-between items-center mb-2 md:mb-4 gap-2 md:gap-0">
-        <div>
-          <h1 className="text-xl md:text-2xl font-semibold flex items-center gap-2">
-            Conservation of Architectural Heritage <span className="text-blue-500">Visualization</span>
-          </h1>
-          <p className="text-xs md:text-sm text-gray-500 hidden md:block">Pix2Pix Two-Step Restitution Pipeline</p>
+      <header className="flex-none bg-white border-b z-10 px-6 py-3 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">
+            AI
+          </div>
+          <div>
+            <h1 className="text-base font-bold leading-none">Heritage Restoration</h1>
+            <span className="text-[10px] text-gray-500 font-medium">Pix2Pix Architecture</span>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
+
+        {/* Stepper Navigation */}
+        <div className="hidden md:flex items-center bg-gray-100/80 p-1 rounded-lg">
+          {STEPS.map((step, idx) => {
+            const Icon = step.icon;
+            const isActive = activeStep === idx;
+            const isCompleted = activeStep > idx;
+
+            return (
+              <button
+                key={step.id}
+                onClick={() => setActiveStep(idx)}
+                className={`relative flex items-center gap-2 px-4 py-1.5 rounded-md transition-all text-xs font-medium ${isActive ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+              >
+                <Icon size={14} className={isActive ? 'text-blue-500' : isCompleted ? 'text-gray-400' : 'text-gray-400'} />
+                {step.label}
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => window.open('https://www.emerald.com/ohi/article-abstract/48/1/23/306730/Machine-learning-for-conservation-of-architectural?redirectedFrom=fulltext', '_blank')}
-            className="p-2 text-gray-400 hover:text-black transition"
+            onClick={() => setIsPlaying(!isPlaying)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${isPlaying ? 'bg-red-50 text-red-600' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
           >
-            <Info className="w-5 h-5" />
+            {isPlaying ? 'Stop Auto-Play' : <><Play size={12} fill="currentColor" /> Start Demo</>}
           </button>
         </div>
       </header>
 
-      {/* Main Canvas Area */}
-      <main className="canvas-container flex-1 shadow-2xl relative w-full overflow-hidden">
+      {/* Main Content */}
+      <main className="flex-1 relative overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
-            key={currentScene}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: (currentScene === SceneType.Step1 || currentScene === SceneType.Step2) ? 1.0 : 0.5 }}
-            className="w-full h-full overflow-y-auto md:overflow-hidden"
+            key={activeStep}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3 }}
+            className="w-full h-full"
           >
             {renderScene()}
           </motion.div>
         </AnimatePresence>
-
-        {/* Scene Labels Overlay */}
-        <div className="absolute top-4 left-4 md:top-6 md:left-6 flex flex-col gap-1 pointer-events-none">
-          <span className="text-[8px] md:text-[10px] font-bold text-blue-500 uppercase tracking-widest">
-            SCENE {Object.values(SceneType).indexOf(currentScene) + 1} / 8
-          </span>
-          <span className="text-xs md:text-sm font-medium text-gray-900 capitalize">
-            {currentScene.replace(/([A-Z])/g, ' $1').trim()}
-          </span>
-        </div>
       </main>
 
-      {/* Controls & Legend */}
-      <div className="w-full max-w-6xl mt-4 grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Playback Controls */}
-        <div className="lg:col-span-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col justify-center">
-          <div className="flex items-center justify-center gap-6 mb-4">
-            <button onClick={reset} className="p-2 text-gray-400 hover:text-blue-500 transition">
-              <RotateCcw className="w-5 h-5" />
-            </button>
-            <button
-              onClick={togglePlay}
-              className="w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 transition shadow-lg shadow-blue-200"
-            >
-              {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 ml-1" />}
-            </button>
-            <button className="p-2 text-gray-400 hover:text-blue-500 transition">
-              <Download className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="flex flex-col gap-1">
-            <div className="flex justify-between text-[10px] font-bold text-gray-400">
-              <span>{Math.floor(currentTime)}s</span>
-              <span>53.0s</span>
-            </div>
-            <input
-              type="range"
-              min="0" max="53" step="0.1"
-              value={currentTime}
-              onChange={(e) => setCurrentTime(parseFloat(e.target.value))}
-              className="w-full accent-blue-500"
-            />
-          </div>
-        </div>
-
-        {/* Color Legend */}
-        <div className="lg:col-span-3 bg-white p-4 rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-          <h4 className="text-[10px] font-bold text-gray-400 mb-4 uppercase tracking-widest">Color Legend Mapping</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Footer Controls / Legend */}
+      <footer className="flex-none bg-white border-t px-6 py-3">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-8">
+          {/* Color Legend */}
+          <div className="flex items-center gap-4 overflow-x-auto no-scrollbar">
+            <span className="text-[10px] font-bold text-gray-400 uppercase whitespace-nowrap">Semantic Labels</span>
+            <div className="h-4 w-px bg-gray-200" />
             {COLORS.map((item) => (
-              <div key={item.label} className="flex items-center gap-3">
-                <div className={`w-4 h-4 rounded-sm border ${item.color}`} />
-                <span className="text-xs font-medium text-gray-600">{item.label}</span>
+              <div key={item.label} className="flex items-center gap-2 whitespace-nowrap">
+                <div className={`w-3 h-3 rounded-full border ${item.color}`} />
+                <span className="text-[10px] font-medium text-gray-600">{item.label}</span>
               </div>
             ))}
           </div>
-        </div>
-      </div>
 
-      {/* Footer Info */}
-      <footer className="mt-4 text-gray-400 text-[10px] font-medium flex flex-wrap justify-center gap-4 md:gap-8 hidden md:flex">
-        <span>FRAME RATE: 24 FPS</span>
-        <span>RESOLUTION: 1920 X 1080 (RENDER)</span>
-        <span>ASPECT RATIO: 16:9</span>
-        <span>ENGINE: PIX2PIX (U-NET)</span>
+          {/* Navigation Controls */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveStep(Math.max(0, activeStep - 1))}
+              disabled={activeStep === 0}
+              className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 transition-colors"
+            >
+              <ChevronRight size={20} className="rotate-180" />
+            </button>
+            <span className="text-xs font-mono font-medium w-12 text-center">
+              {activeStep + 1} / {STEPS.length}
+            </span>
+            <button
+              onClick={() => setActiveStep(Math.min(STEPS.length - 1, activeStep + 1))}
+              disabled={activeStep === STEPS.length - 1}
+              className="p-2 rounded-full hover:bg-gray-100 disabled:opacity-30 transition-colors"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+        </div>
       </footer>
     </div>
   );
