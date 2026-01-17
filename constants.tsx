@@ -10,7 +10,7 @@ export const COLORS: ColorLegend[] = [
 ];
 
 export const STAGES: FloorPlanStage[] = [
-  { id: 'footprint', label: '(a) Incomplete Ruins', caption: 'dataset 1' },
-  { id: 'zoning', label: '(b) Structural Elements', caption: 'dataset 2' },
-  { id: 'furnishing', label: '(c) Restitution', caption: '' },
+  { id: 'footprint', label: '(a) Incomplete Ruins', caption: 'Input: Fragmented ruins' },
+  { id: 'zoning', label: '(b) Structural Elements', caption: 'Identifying missing structures' },
+  { id: 'furnishing', label: '(c) Restitution', caption: 'Output: Complete restoration' },
 ];

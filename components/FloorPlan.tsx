@@ -7,10 +7,10 @@ interface FloorPlanProps {
 }
 
 const STAGE_IMAGE_MAP = {
-  footprint: { url: 'images/training/vf5_1%20copy.jpg', crop: 'left' },
-  raster: { url: 'images/training/vf5_1%20copy.jpg', crop: 'left' },
-  zoning: { url: 'images/training/vf5_1%20copy.jpg', crop: 'right' },
-  furnishing: { url: 'images/training/vf5_2%20copy.jpg', crop: 'right' },
+  footprint: { url: 'images/training/vf5_1.jpg', crop: 'left' },
+  raster: { url: 'images/training/vf5_1.jpg', crop: 'left' },
+  zoning: { url: 'images/training/vf5_1.jpg', crop: 'right' },
+  furnishing: { url: 'images/training/vf5_2.jpg', crop: 'right' },
   val_footprint: { url: 'images/validation/vf6_1%20copy.jpg', crop: 'left' },
   val_zoning: { url: 'images/validation/vf6_1%20copy.jpg', crop: 'right' },
   val_furnishing: { url: 'images/validation/vf6_2%20copy.jpg', crop: 'right' },
