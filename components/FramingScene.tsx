@@ -12,11 +12,12 @@ export const FramingScene = () => {
     const [step, setStep] = useState(0);
 
     useEffect(() => {
-        // Auto-advance ONLY after the first step (user clicks to start)
-        if (step > 0 && step < STAGES.length) {
+        // Auto-advance
+        if (step < STAGES.length) {
+            const delay = step === 0 ? 2000 : 3000; // 2s wait for first step (simulating click), then 3s intervals
             const timer = setTimeout(() => {
                 setStep(prev => prev + 1);
-            }, 3000);
+            }, delay);
             return () => clearTimeout(timer);
         }
     }, [step]);
